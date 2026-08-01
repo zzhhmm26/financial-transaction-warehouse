@@ -1,0 +1,3 @@
+amount_type,transactions_count,laundering_count,laundering_rate_pct
+large,10007,6,0.06
+other,989993,208,0.021
