@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">Financial Transaction Warehouse</title>
+  <desc id="desc">Python ETL and MySQL analytics for 6.9 million synthetic financial transactions.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1f33"/>
+      <stop offset="0.58" stop-color="#123f56"/>
+      <stop offset="1" stop-color="#0b6b72"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4cc9b0"/>
+      <stop offset="1" stop-color="#77bdfb"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#03111f" flood-opacity="0.35"/>
+    </filter>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M 36 0 L 0 0 0 36" fill="none" stroke="#ffffff" stroke-opacity="0.055" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="320" rx="24" fill="url(#background)"/>
+  <rect width="1200" height="320" rx="24" fill="url(#grid)"/>
+  <circle cx="1110" cy="45" r="180" fill="#4cc9b0" opacity="0.07"/>
+  <circle cx="1040" cy="300" r="150" fill="#77bdfb" opacity="0.06"/>
+
+  <g transform="translate(68 55)" filter="url(#shadow)">
+    <rect x="0" y="28" width="120" height="150" rx="14" fill="#ffffff" fill-opacity="0.1" stroke="#8ed8ee" stroke-opacity="0.5"/>
+    <path d="M25 60h70M25 84h70M25 108h52M25 132h62" stroke="#c7edf5" stroke-width="7" stroke-linecap="round" opacity="0.9"/>
+    <text x="60" y="208" text-anchor="middle" fill="#a9dfea" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">CSV</text>
+
+    <path d="M148 104h78" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+    <path d="M214 91l18 13-18 13" fill="none" stroke="#77bdfb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(244 44)">
+      <rect width="138" height="120" rx="18" fill="#ffffff" fill-opacity="0.11" stroke="#81d4c6" stroke-opacity="0.55"/>
+      <text x="69" y="50" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="25" font-weight="700">50K</text>
+      <text x="69" y="79" text-anchor="middle" fill="#a9dfea" font-family="Segoe UI, Arial, sans-serif" font-size="15">ROWS / CHUNK</text>
+      <path d="M28 96h82" stroke="#4cc9b0" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <text x="313" y="208" text-anchor="middle" fill="#a9dfea" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">PYTHON ETL</text>
+
+    <path d="M406 104h78" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+    <path d="M472 91l18 13-18 13" fill="none" stroke="#77bdfb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="translate(508 32)">
+      <ellipse cx="70" cy="24" rx="70" ry="24" fill="#77bdfb" fill-opacity="0.34" stroke="#a7e4f0" stroke-width="2"/>
+      <path d="M0 24v105c0 13 31 24 70 24s70-11 70-24V24" fill="#ffffff" fill-opacity="0.1" stroke="#a7e4f0" stroke-width="2"/>
+      <path d="M0 76c0 13 31 24 70 24s70-11 70-24M0 126c0 13 31 24 70 24s70-11 70-24" fill="none" stroke="#a7e4f0" stroke-width="2" opacity="0.8"/>
+      <text x="70" y="73" text-anchor="middle" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">6.9M</text>
+    </g>
+    <text x="578" y="208" text-anchor="middle" fill="#a9dfea" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">MYSQL</text>
+  </g>
+
+  <g transform="translate(735 76)">
+    <text x="0" y="0" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="29" font-weight="750" letter-spacing="0.8">FINANCIAL TRANSACTION</text>
+    <text x="0" y="43" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="29" font-weight="750" letter-spacing="0.8">WAREHOUSE</text>
+    <rect x="0" y="68" width="340" height="5" rx="2.5" fill="url(#accent)"/>
+    <text x="0" y="112" fill="#b9e5ee" font-family="Segoe UI, Arial, sans-serif" font-size="17" letter-spacing="1.4">PYTHON ETL  •  MYSQL ANALYTICS</text>
+    <text x="0" y="146" fill="#8fcbd8" font-family="Segoe UI, Arial, sans-serif" font-size="15">CHUNKED LOAD  /  INDEXING  /  WINDOW FUNCTIONS</text>
+  </g>
+</svg>

@@ -1,83 +1,78 @@
 <div align="center">
 
+![Financial Transaction Warehouse](docs/assets/project_banner.svg)
+
 # 百万级金融交易 ETL 与 SQL 分析
 
-**使用 Python 分块处理与 MySQL，将 620 MB CSV 构建为可查询的金融交易分析库**
+**从 620 MB 原始 CSV 到 692 万行 MySQL 分析库的可复现数据工程项目**
 
-![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.0+-4479A1?logo=mysql&logoColor=white)
-![Pandas](https://img.shields.io/badge/Pandas-3.0-150458?logo=pandas&logoColor=white)
-![Data License](https://img.shields.io/badge/Data%20License-CDLA--Sharing--1.0-0EA5E9)
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![SQL](https://img.shields.io/badge/SQL-MySQL%208.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Pandas](https://img.shields.io/badge/Pandas-3.0-150458?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+![Rows](https://img.shields.io/badge/rows-6%2C924%2C049-16A34A)
+[![Data License](https://img.shields.io/badge/Data%20License-CDLA--Sharing--1.0-0EA5E9)](https://cdla.dev/sharing-1-0/)
+
+[项目摘要](#项目摘要) · [工程实现](#工程实现) · [分析结果](#分析结果) · [技术路线](#技术路线) · [快速复现](#快速复现)
 
 </div>
 
-## 项目概览
+## 项目摘要
 
-本项目使用 IBM AML-Data 的 `LI-Small_Trans.csv`，实现从大型 CSV 到 MySQL 分析库的完整流程。项目重点不是训练另一个风险预测模型，而是处理百万级交易数据时的数据导入、质量验证、查询设计和性能优化。
+本项目使用 IBM AML-Data 的 `LI-Small_Trans.csv`，搭建一条从大型 CSV 到 MySQL 分析层的完整数据流程。重点不是再训练一个风险预测模型，而是展示百万级交易数据的 **分块读取、批量写入、质量验证、索引设计、窗口函数和汇总层优化**。
 
-Python 以 **5 万行为一块**读取原始数据，清洗字段后再以 **5,000 行为一批**写入 MySQL。导入完成后，使用索引、窗口函数和账户日汇总表支持大额交易、高频交易与洗钱标签的关联分析。
+| 原始文件 | 完整交易数 | 洗钱标签数 | 读取块大小 | 插入批次 |
+|:---:|:---:|:---:|:---:|:---:|
+| **约 620 MB** | **6,924,049** | **3,565** | **50,000 行** | **5,000 行** |
 
-| 指标 | 结果 |
-|---|---:|
-| 原始 CSV 大小 | 约 620 MB |
-| 完整交易数 | 6,924,049 |
-| 洗钱标签交易数 | 3,565 |
-| CSV 读取块大小 | 50,000 行 |
-| MySQL 批量插入大小 | 5,000 行 |
-| 高频组洗钱率（9月1日至10日） | 0.0971% |
-| 普通组洗钱率（9月1日至10日） | 0.0417% |
+> 阅读重点：先看数据如何可靠进入 MySQL，再看索引和账户日汇总层如何支撑高频交易分析。原始数据与数据库密码均不进入仓库。
 
-![AML交易风险特征分析](outputs/figures/aml_risk_summary.png)
+## 工程实现
 
-## 技术路线
+### 1. 分块 ETL：控制内存并批量入库
 
-```mermaid
-flowchart LR
-    A[620 MB 原始 CSV] --> B[Pandas 分块读取<br/>每块 50,000 行]
-    B --> C[字段清洗与类型转换]
-    C --> D[PyMySQL executemany<br/>每批 5,000 行]
-    D --> E[(MySQL transactions<br/>6,924,049 行)]
-    E --> F[导入质量验证]
-    E --> G[索引]
-    E --> H[账户日汇总表]
-    G --> I[SQL 业务分析]
-    H --> I
-    I --> J[CSV 结果与 Matplotlib 图表]
-```
+大型 CSV 被 Pandas 读入后，内存占用通常远高于文件体积。项目使用 `read_csv(..., chunksize=50_000)` 逐块读取，每块依次完成字段统一、时间转换、标签转换和 MySQL 写入。
 
-## 核心实现
+| 问题 | 实现 | 作用 |
+|---|---|---|
+| CSV 无法安全一次读入 | 每次读取 50,000 行 | 将内存占用控制在固定范围 |
+| 逐行插入速度慢 | `executemany` 每批写入 5,000 行 | 减少数据库往返次数 |
+| 全量事务过大 | 每个数据块独立提交 | 限制单次事务规模 |
+| 字段含义不统一 | 统一 11 个字段并转换时间、标签 | 保证数据库类型可用 |
 
-### 1. 分块 ETL
-
-直接把 620 MB CSV 一次读入内存，会产生远高于文件体积的内存占用。项目使用 `pandas.read_csv(..., chunksize=50_000)` 返回分块读取器，逐块完成：
-
-1. 统一 11 个交易字段的名称；
-2. 将交易时间转换为日期时间类型；
-3. 将洗钱标签转换为整数 `0/1`；
-4. 使用 `executemany` 批量写入 MySQL；
-5. 每个 5 万行数据块独立提交事务。
-
-完整导入脚本见 [`src/import_transactions_chunked.py`](src/import_transactions_chunked.py)。一次性读取的早期版本保留在 [`src/import_transactions.py`](src/import_transactions.py)，用于展示从样本导入到分块导入的迭代过程。
+完整实现见 [`src/import_transactions_chunked.py`](src/import_transactions_chunked.py)。早期一次性读取版本保留在 [`src/import_transactions.py`](src/import_transactions.py)，用于展示从开发样本到全量分块导入的迭代过程。
 
 ### 2. 数据完整性验证
 
-导入后从三个角度检查结果：
+导入完成后，通过 SQL 同时核对：
 
 - 总行数是否为 `6,924,049`；
 - 洗钱标签交易数是否为 `3,565`；
-- 交易时间范围是否与原始数据一致。
+- 最早与最晚交易时间是否覆盖原始数据范围；
+- 标签 `0/1` 的记录数是否与源数据一致。
 
-验证 SQL 见 [`sql/02_validate_import.sql`](sql/02_validate_import.sql)。
+验证脚本见 [`sql/02_validate_import.sql`](sql/02_validate_import.sql)。
 
-### 3. 查询性能优化
+### 3. SQL 分析层与性能优化
 
-高频交易分析需要先按“日期、付款银行、付款账户”汇总，再按每日交易次数排序。直接在 692 万行交易表上重复执行分组和窗口计算，单次查询耗时超过 2 分钟。
+高频交易分析需要先按“日期、付款银行、付款账户”汇总，再按每日交易次数排序。直接在 692 万行明细表上重复执行分组和窗口计算，首次查询耗时超过 2 分钟。
 
-项目将最昂贵的账户日聚合保存为 `daily_account_stats` 汇总表，并为日期与交易频次建立索引。后续排名和风险率查询直接读取汇总层，避免每次重新扫描并聚合原始交易表。
+项目将最昂贵的账户日聚合保存为 `daily_account_stats`，并为交易时间、付款账户、币种金额以及每日频次建立索引。后续分析直接读取汇总层，避免反复扫描并聚合原始交易表。
 
-相关 SQL 见 [`sql/03_build_analytics_layer.sql`](sql/03_build_analytics_layer.sql)。
+```text
+transactions（6,924,049 笔交易）
+        │
+        ├── 明细索引：时间 / 付款账户 / 币种金额
+        │
+        └── daily_account_stats（账户日汇总层）
+                         │
+                         └── 高频排名 / 风险率 / 敏感性分析
+```
+
+建表与索引脚本见 [`sql/03_build_analytics_layer.sql`](sql/03_build_analytics_layer.sql)。
 
 ## 分析结果
+
+![AML交易风险特征分析](outputs/figures/aml_risk_summary.png)
 
 ### 高频交易与洗钱标签
 
@@ -85,61 +80,75 @@ flowchart LR
 
 | 组别 | 账户日数量 | 交易数 | 洗钱交易数 | 洗钱率 |
 |---|---:|---:|---:|---:|
-| 高频组 | 21,185 | 979,344 | 951 | 0.0971% |
-| 普通组 | 2,096,823 | 5,944,482 | 2,480 | 0.0417% |
+| 高频组 | 21,185 | 979,344 | 951 | **0.0971%** |
+| 普通组 | 2,096,823 | 5,944,482 | 2,480 | **0.0417%** |
 
 高频组洗钱率约为普通组的 **2.33 倍**。这表示二者存在正向关联，但两组绝对洗钱率均低于 0.1%，高频特征不能单独用于认定洗钱。
 
-![高频交易与洗钱率](outputs/figures/high_frequency_risk.png)
-
 ### 异常尾部敏感性分析
 
-9月11日至17日只有 223 笔交易，其中 134 笔带有洗钱标签，分布明显不同于主要交易日期。将这部分数据纳入后：
+9月11日至17日只有 223 笔交易，其中 134 笔带有洗钱标签，分布明显不同于主要交易日期。纳入这部分数据后，高频组与普通组洗钱率分别为 `0.0995%` 和 `0.0436%`，相对倍数从 `2.33` 变为 `2.28`，结论方向没有改变。
 
-| 数据范围 | 高频组洗钱率 | 普通组洗钱率 | 相对倍数 |
-|---|---:|---:|---:|
-| 9月1日至10日 | 0.0971% | 0.0417% | 2.33 |
-| 全部日期 | 0.0995% | 0.0436% | 2.28 |
-
-结论方向没有改变，说明高频分析对是否包含异常尾部数据并不敏感。
-
-![敏感性分析](outputs/figures/sensitivity_analysis.png)
+<table>
+  <tr>
+    <td width="50%"><img src="outputs/figures/high_frequency_risk.png" alt="高频交易与洗钱率"></td>
+    <td width="50%"><img src="outputs/figures/sensitivity_analysis.png" alt="末端敏感性分析"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>高频账户日与普通账户日对比</b></td>
+    <td align="center"><b>异常尾部不改变主要结论</b></td>
+  </tr>
+</table>
 
 ### 大额交易与洗钱标签
 
 大额交易定义为：**在各支付币种内部按金额排名前 1% 的交易**。这一分析使用早期的 100 万行开发样本，避免把不同币种的金额直接相加比较。
 
-| 组别 | 交易数 | 洗钱交易数 | 洗钱率 |
-|---|---:|---:|---:|
-| 大额交易 | 10,007 | 6 | 0.060% |
-| 其他交易 | 989,993 | 208 | 0.021% |
-
-样本中大额交易组洗钱率约为其他交易的 **2.86 倍**，但大额组只有 6 个洗钱标签，结论需要谨慎解释。
+- 大额交易组：10,007 笔交易，6 笔洗钱标签，洗钱率 `0.060%`；
+- 其他交易组：989,993 笔交易，208 笔洗钱标签，洗钱率 `0.021%`；
+- 样本中大额交易组约为其他交易的 **2.86 倍**，但阳性样本仅 6 笔，需要谨慎解释。
 
 ![大额交易与洗钱率](outputs/figures/large_transaction_risk.png)
 
-分析 SQL 集中在 [`sql/04_business_analysis.sql`](sql/04_business_analysis.sql)，图表由 [`src/visualize_results.py`](src/visualize_results.py) 生成。
+业务查询集中在 [`sql/04_business_analysis.sql`](sql/04_business_analysis.sql)，图表由 [`src/visualize_results.py`](src/visualize_results.py) 生成。
+
+## 技术路线
+
+```mermaid
+flowchart LR
+    A[IBM AML CSV] --> B[Pandas 分块读取]
+    B --> C[字段清洗与类型转换]
+    C --> D[PyMySQL 批量写入]
+    D --> E[(MySQL 明细表)]
+    E --> F[质量验证]
+    E --> G[索引与账户日汇总层]
+    G --> H[窗口函数与业务 SQL]
+    H --> I[CSV 结果]
+    I --> J[Matplotlib 图表]
+```
 
 ## 项目结构
 
 ```text
 financial-transaction-warehouse/
 ├── data/
-│   ├── raw/                         # 原始数据，本地保存且不进入 Git
-│   └── processed/                   # 开发样本，本地保存且不进入 Git
-├── outputs/figures/                 # 分析图表
+│   ├── raw/                         # 原始数据，不进入 Git
+│   └── processed/                   # 开发样本，不进入 Git
+├── docs/assets/                     # README 横幅素材
+├── outputs/figures/                 # 代码生成的分析图表
 ├── sql/
 │   ├── 01_create_schema.sql
 │   ├── 02_validate_import.sql
 │   ├── 03_build_analytics_layer.sql
 │   └── 04_business_analysis.sql
 ├── src/
-│   ├── create_sample.py             # 生成 100 万行开发样本
-│   ├── import_transactions.py       # 早期一次性导入版本
+│   ├── create_sample.py
+│   ├── import_transactions.py
 │   ├── import_transactions_chunked.py
 │   ├── test_connection.py
 │   └── visualize_results.py
 ├── .env.example
+├── .gitattributes
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -147,9 +156,9 @@ financial-transaction-warehouse/
 
 ## 快速复现
 
-### 1. 准备环境
-
 要求 Python 3.13（项目测试版本）和支持窗口函数的 MySQL 8.0+。
+
+### 1. 安装依赖
 
 ```powershell
 python -m venv .venv
@@ -158,36 +167,24 @@ python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 ```
 
-在 `.env` 中填写本地 MySQL 连接信息。`.env` 已加入 `.gitignore`，不会上传密码。
+在 `.env` 中填写本地 MySQL 连接信息。该文件已被 Git 忽略，不会上传数据库密码。
 
-### 2. 准备数据
+### 2. 准备数据与数据库
 
-从 IBM AML-Data 下载 `LI-Small_Trans.csv`，放置到：
+从 IBM AML-Data 下载 `LI-Small_Trans.csv`，保存到：
 
 ```text
 data/raw/LI-Small_Trans.csv
 ```
 
-原始数据体积较大且受单独的数据许可约束，因此不包含在本仓库中。
-
-### 3. 创建数据库并导入
-
-先在 MySQL 中运行：
-
-```text
-sql/01_create_schema.sql
-```
-
-确认 `transactions` 是空表后执行：
+在 MySQL 中运行 [`sql/01_create_schema.sql`](sql/01_create_schema.sql)，然后执行：
 
 ```powershell
 python src/test_connection.py
 python src/import_transactions_chunked.py
 ```
 
-当前导入器会按块提交，但尚不支持断点续传。如果中途失败，已提交的数据仍会保留；从头重跑前必须先清空交易表，避免重复导入。
-
-### 4. 验证并分析
+### 3. 验证并分析
 
 按顺序运行：
 
@@ -197,11 +194,13 @@ sql/03_build_analytics_layer.sql
 sql/04_business_analysis.sql
 ```
 
-将查询结果导出为项目根目录下的三个 CSV 后，可重新生成图表：
+导出查询结果 CSV 后，可重新生成图表：
 
 ```powershell
 python src/visualize_results.py
 ```
+
+> 当前导入器会按块提交，但尚不支持断点续传。如果中途失败，已提交的数据仍会保留；从头重跑前必须先清空交易表，避免重复导入。
 
 ## 数据来源与使用边界
 
@@ -221,4 +220,4 @@ python src/visualize_results.py
 
 ## 项目定位
 
-本项目展示的是大型 CSV 的分块 ETL、MySQL 批量写入、数据质量验证、索引设计、窗口函数和汇总层优化能力。业务分析用于验证数据管道和分析层是否可用，不以机器学习建模为目标。
+本项目展示大型 CSV 的分块 ETL、MySQL 批量写入、数据质量验证、索引设计、窗口函数和汇总层优化能力。业务分析用于验证数据管道和分析层是否可用，不以机器学习建模为目标。
